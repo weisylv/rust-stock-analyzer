@@ -9,6 +9,8 @@ use tokio::net::TcpListener;
 use std::env;
 use dotenvy::dotenv;
 use reqwest::Client;
+use ingestion::load_demo_data;
+use analytics::calculate_sma;
 
 // --- Struct for /health response ---
 #[derive(Serialize)]

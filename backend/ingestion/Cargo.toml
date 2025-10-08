@@ -9,3 +9,4 @@ tokio = { version = "1", features = ["full"] }      # Async runtime
 serde = { version = "1.0", features = ["derive"] }  # JSON parsing
 serde_json = "1.0"                                  # JSON helpers
 dotenvy = "0.15"                                    # Env variable loader
+csv = "1.3"

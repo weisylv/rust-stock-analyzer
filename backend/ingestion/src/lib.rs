@@ -5,9 +5,10 @@ use serde::Deserialize;
 
 // for live mode:
 use reqwest;
-use serde::Deserialize;
+// use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+/// Represents a single stock record (one time interval)
+#[derive(Debug, Deserialize, Clone)]
 pub struct StockRecord {
     pub timestamp: String,
     pub open: f64,
@@ -17,6 +18,16 @@ pub struct StockRecord {
     pub volume: u64,
 }
 
+/// Loads demo stock data from a CSV file in the local data directory.
+///
+/// # Arguments
+/// * `path` - The relative or absolute path to the CSV file.
+///
+/// # Example
+/// ```
+/// let data = load_demo_data("data/sample_aapl.csv").unwrap();
+/// println!("Loaded {} rows", data.len());
+/// ```
 pub fn load_demo_data(path: &str) -> Result<Vec<StockRecord>, Box<dyn Error>> {
     let file = File::open(path)?;
     let mut rdr = ReaderBuilder::new()
@@ -33,23 +44,23 @@ pub fn load_demo_data(path: &str) -> Result<Vec<StockRecord>, Box<dyn Error>> {
 }
 
 
-#[derive(Debug, Deserialize)]
-pub struct FinnhubCandle {
-    c: Vec<f64>, // close prices
-    h: Vec<f64>, // high prices
-    l: Vec<f64>, // low prices
-    o: Vec<f64>, // open prices
-    s: String,   // status
-    t: Vec<i64>, // timestamps
-    v: Vec<u64>, // volumes
-}
+// #[derive(Debug, Deserialize)]
+// pub struct FinnhubCandle {
+//     c: Vec<f64>, // close prices
+//     h: Vec<f64>, // high prices
+//     l: Vec<f64>, // low prices
+//     o: Vec<f64>, // open prices
+//     s: String,   // status
+//     t: Vec<i64>, // timestamps
+//     v: Vec<u64>, // volumes
+// }
 
-pub async fn fetch_live_data(symbol: &str, api_key: &str) -> Result<FinnhubCandle, Box<dyn Error>> {
-    let url = format!(
-        "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=5&count=10&token={}",
-        symbol, api_key
-    );
+// pub async fn fetch_live_data(symbol: &str, api_key: &str) -> Result<FinnhubCandle, Box<dyn Error>> {
+//     let url = format!(
+//         "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=5&count=10&token={}",
+//         symbol, api_key
+//     );
 
-    let resp = reqwest::get(&url).await?.json::<FinnhubCandle>().await?;
-    Ok(resp)
-}
+//     let resp = reqwest::get(&url).await?.json::<FinnhubCandle>().await?;
+//     Ok(resp)
+// }

@@ -12,6 +12,17 @@ use reqwest::Client;
 use ingestion::load_demo_data;
 use analytics::calculate_sma;
 
+let demo_mode = env::var("DEMO_MODE").unwrap_or_else(|_| "true".to_string()) == "true";
+
+if demo_mode {
+    let data = ingestion::load_demo_data("data/sample_aapl.csv").unwrap();
+    println!("Loaded demo data: {:?}", data);
+} else {
+    let api_key = env::var("STOCK_API_KEY").expect("Missing STOCK_API_KEY");
+    let data = ingeestion::fetch_live_data("AAPL", &api_key).await.unwrap();
+    println!("Fetched live data: {:?}", data);
+}
+
 // --- Struct for /health response ---
 #[derive(Serialize)]
 struct HealthCheck {

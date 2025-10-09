@@ -19,7 +19,7 @@ if demo_mode {
     println!("Loaded demo data: {:?}", data);
 } else {
     let api_key = env::var("STOCK_API_KEY").expect("Missing STOCK_API_KEY");
-    let data = ingeestion::fetch_live_data("AAPL", &api_key).await.unwrap();
+    let data = ingestion::fetch_live_data("AAPL", &api_key).await.unwrap();
     println!("Fetched live data: {:?}", data);
 }
 

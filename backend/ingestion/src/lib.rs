@@ -44,23 +44,37 @@ pub fn load_demo_data(path: &str) -> Result<Vec<StockRecord>, Box<dyn Error>> {
 }
 
 
-// #[derive(Debug, Deserialize)]
-// pub struct FinnhubCandle {
-//     c: Vec<f64>, // close prices
-//     h: Vec<f64>, // high prices
-//     l: Vec<f64>, // low prices
-//     o: Vec<f64>, // open prices
-//     s: String,   // status
-//     t: Vec<i64>, // timestamps
-//     v: Vec<u64>, // volumes
-// }
+#[derive(Debug, Deserialize)]
+pub struct FinnhubCandle {
+    pub c: Vec<f64>, // close prices
+    pub h: Vec<f64>, // high prices
+    pub l: Vec<f64>, // low prices
+    pub o: Vec<f64>, // open prices
+    pub s: String,   // status
+    pub t: Vec<i64>, // timestamps
+    pub v: Vec<u64>, // volumes
+}
 
-// pub async fn fetch_live_data(symbol: &str, api_key: &str) -> Result<FinnhubCandle, Box<dyn Error>> {
-//     let url = format!(
-//         "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=5&count=10&token={}",
-//         symbol, api_key
-//     );
+/// Fetch recent stock data from Finnhub (Live Mode)
+pub async fn fetch_live_data(
+    symbol: &str,
+    api_key: &str,
+) -> Result<FinnhubCandle, Box<dyn Error>> {
+    // Example: 5-minute candles, last 10 bars
+    let url = format!(
+        "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=5&count=10&token={}",
+        symbol, api_key
+    );
 
-//     let resp = reqwest::get(&url).await?.json::<FinnhubCandle>().await?;
-//     Ok(resp)
-// }
+    let response = reqwest::get(&url).await?;
+    if !response.status().is_success() {
+        return Err(format!("Finnhub API error: {}", response.status()).into());
+    }
+
+    let candle = response.json::<FinnhubCandle>().await?;
+    if candle.s != "ok" {
+        return Err("No data returned from Finnhub".into());
+    }
+
+    Ok(candle)
+}

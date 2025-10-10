@@ -1,14 +1,14 @@
 use std::error::Error;
 use std::fs::File;
 use csv::ReaderBuilder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // for live mode:
 use reqwest;
 // use serde::Deserialize;
 
 /// Represents a single stock record (one time interval)
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StockRecord {
     pub timestamp: String,
     pub open: f64,
@@ -44,7 +44,7 @@ pub fn load_demo_data(path: &str) -> Result<Vec<StockRecord>, Box<dyn Error>> {
 }
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FinnhubCandle {
     pub c: Vec<f64>, // close prices
     pub h: Vec<f64>, // high prices
@@ -59,22 +59,32 @@ pub struct FinnhubCandle {
 pub async fn fetch_live_data(
     symbol: &str,
     api_key: &str,
-) -> Result<FinnhubCandle, Box<dyn Error>> {
-    // Example: 5-minute candles, last 10 bars
+) -> Result<serde_json::Value, Box<dyn Error>> {
     let url = format!(
-        "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=5&count=10&token={}",
+        "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=D&count=10&token={}",
         symbol, api_key
     );
 
-    let response = reqwest::get(&url).await?;
-    if !response.status().is_success() {
-        return Err(format!("Finnhub API error: {}", response.status()).into());
+    let resp = reqwest::get(&url).await?;
+    if resp.status() == reqwest::StatusCode::FORBIDDEN {
+        // Fallback to /quote
+        let quote_url = format!(
+            "https://finnhub.io/api/v1/quote?symbol={}&token={}",
+            symbol, api_key
+        );
+        let quote_resp = reqwest::get(&quote_url).await?;
+        let quote_json: serde_json::Value = quote_resp.json().await?;
+
+        return Ok(serde_json::json!({
+            "mode": "live (free-tier)",
+            "symbol": symbol,
+            "quote": quote_json
+        }));
+    }
+    if !resp.status().is_success() {
+    return Err(format!("Finnhub API error: {}", resp.status()).into());
     }
 
-    let candle = response.json::<FinnhubCandle>().await?;
-    if candle.s != "ok" {
-        return Err("No data returned from Finnhub".into());
-    }
-
-    Ok(candle)
+    let candle_json: serde_json::Value = resp.json().await?;
+    Ok(candle_json)
 }

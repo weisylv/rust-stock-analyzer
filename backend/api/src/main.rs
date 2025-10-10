@@ -1,82 +1,75 @@
 use axum::{
     routing::get,
-    Router,
-    response::Json,
+    response::IntoResponse,
+    Json, Router,
 };
-use serde::Serialize;
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use std::env;
 use dotenvy::dotenv;
-use reqwest::Client;
-use ingestion::load_demo_data;
-use analytics::calculate_sma;
+use std::env;
+use serde_json::json;
+use std::net::SocketAddr;
 
-let demo_mode = env::var("DEMO_MODE").unwrap_or_else(|_| "true".to_string()) == "true";
-
-if demo_mode {
-    let data = ingestion::load_demo_data("data/sample_aapl.csv").unwrap();
-    println!("Loaded demo data: {:?}", data);
-} else {
-    let api_key = env::var("STOCK_API_KEY").expect("Missing STOCK_API_KEY");
-    let data = ingestion::fetch_live_data("AAPL", &api_key).await.unwrap();
-    println!("Fetched live data: {:?}", data);
-}
-
-// --- Struct for /health response ---
-#[derive(Serialize)]
-struct HealthCheck {
-    status: String,
-    stock_api_key_set: bool,
-    ollama_host_set: bool,
-}
-
-// --- /health handler ---
-async fn health() -> Json<HealthCheck> {
-    Json(HealthCheck {
-        status: "OK".to_string(),
-        stock_api_key_set: env::var("STOCK_API_KEY").is_ok(),
-        ollama_host_set: env::var("OLLAMA_HOST").is_ok(),
-    })
-}
-
-// --- /health/ollama ---
-#[derive(Serialize)]
-struct OllamaHealth {
-    reachable: bool,
-    host: String,
-}
-
-async fn health_ollama() -> Json<OllamaHealth> {
-    let host = env::var("OLLAMA_HOST").unwrap_or("http://localhost:11434".to_string());
-    let url = format!("{}/api/tags", host); // /api/tags lists available models
-
-    let client = Client::new();
-    let reachable = client.get(&url).send().await.is_ok();
-
-    Json(OllamaHealth { reachable, host })
-}
+// Import functions from your ingestion crate
+use ingestion::{load_demo_data, fetch_live_data};
 
 #[tokio::main]
 async fn main() {
-    // Load .env (if present). If .env doesn't exist, dotenv().ok() will be fine.
-    dotenv().ok();
+    dotenvy::from_filename("../../.env").ok();
 
-    // Default Ollama host if not set
-    let ollama_host = env::var("OLLAMA_HOST")
-        .unwrap_or("http://localhost:11434".to_string());
+    let demo_mode = env::var("DEMO_MODE")
+        .unwrap_or_else(|_| "true".to_string()) == "true";
+    println!("Running in Demo Mode? {}", demo_mode);
 
-    println!("✅ Server starting...");
-    println!("Ollama host: {}", ollama_host);
-
-    // Build the app router
     let app = Router::new()
-        .route("/health", get(health))
-        .route("/health/ollama", get(health_ollama));
+        .route("/stocks/demo", get(get_demo_data))
+        .route("/stocks/live", get(get_live_data))
+        .route("/health", get(health_check));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    println!("✅ Server running on {}", addr);
+    let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+    println!("🚀 Server running at http://{}/", addr);
 
-    let listener = TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+/// Health check endpoint showing current mode
+async fn health_check() -> impl IntoResponse {
+    let demo_mode = env::var("DEMO_MODE")
+        .unwrap_or_else(|_| "true".to_string()) == "true";
+    let mode = if demo_mode { "demo" } else { "live" };
+
+    Json(json!({
+        "status": "ok",
+        "mode": mode,
+    }))
+}
+
+/// Demo Mode endpoint: reads local CSV
+async fn get_demo_data() -> impl IntoResponse {
+    match load_demo_data("../../data/sample_aapl.csv") {
+        Ok(data) => Json(json!({
+            "mode": "demo",
+            "symbol": "AAPL",
+            "records": data
+        })),
+        Err(e) => Json(json!({
+            "error": format!("Failed to load demo data: {}", e)
+        })),
+    }
+}
+
+/// Live Mode endpoint: calls Finnhub API or fallback
+async fn get_live_data() -> impl IntoResponse {
+    let api_key = env::var("STOCK_API_KEY").unwrap_or_default();
+    let symbol = "AAPL";
+
+    if api_key.is_empty() {
+        return Json(json!({
+            "error": "Missing STOCK_API_KEY in .env"
+        }));
+    }
+
+    match fetch_live_data(symbol, &api_key).await {
+        Ok(data) => Json(data),
+        Err(e) => Json(json!({"error": e.to_string()})),
+    }
 }
